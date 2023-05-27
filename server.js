@@ -5,17 +5,26 @@ const server = net.createServer((socket) => {});
 
 server.on("connection", async (socket) => {
   console.log("New connection!");
+  const random = Math.floor(Math.random() * 10);
 
-  const fileWriteHandle = await fs.open(`storage/myfile.txt`, "w");
+  const fileWriteHandle = await fs.open(`storage/myfile-${random}.txt`, "w");
   const fileStream = fileWriteHandle.createWriteStream();
 
   socket.on("data", (data) => {
-    fileStream.write(data);
+    const canWriteMore = fileStream.write(data);
+    if (!canWriteMore) {
+      socket.pause();
+    }
+  });
+
+  fileStream.on("drain", () => {
+    socket.resume();
   });
 
   socket.on("end", () => {
     fileStream.close();
     fileWriteHandle.close();
+    console.log("A connection was closed");
   });
 });
 
