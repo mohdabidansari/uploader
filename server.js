@@ -5,22 +5,32 @@ const server = net.createServer((socket) => {});
 
 server.on("connection", async (socket) => {
   console.log("New connection!");
-  const random = Math.floor(Math.random() * 10);
 
-  const fileWriteHandle = await fs.open(`storage/myfile-${random}.txt`, "w");
-  const fileStream = fileWriteHandle.createWriteStream();
+  let fileWriteHandle, fileStream;
 
-  socket.on("data", (data) => {
-    const canWriteMore = fileStream.write(data);
-    if (!canWriteMore) {
+  socket.on("data", async (data) => {
+    if (!fileWriteHandle) {
+      //Receiving data first time
       socket.pause();
+
+      const fileNameDivider = data.indexOf("-endoffilename-");
+      const fileName = data.subarray(10, fileNameDivider).toString("utf-8");
+
+      fileWriteHandle = await fs.open(`storage/${fileName}`, "w");
+      fileStream = fileWriteHandle.createWriteStream();
+
+      fileStream.write(data.subarray(fileNameDivider + 15));
+      socket.resume();
+      fileStream.on("drain", () => {
+        socket.resume();
+      });
+    } else {
+      const canWriteMore = fileStream.write(data);
+      if (!canWriteMore) {
+        socket.pause();
+      }
     }
   });
-
-  fileStream.on("drain", () => {
-    socket.resume();
-  });
-
   socket.on("end", () => {
     fileStream.close();
     fileWriteHandle.close();
